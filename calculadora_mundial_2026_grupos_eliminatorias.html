@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Calculadora Mundial 2026 - Grupos y Eliminatorias</title>
+<style>
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --ink:#182033; --muted:#657084; --line:#dce2ee; --soft:#eef2f8;
+  --accent:#123c69; --accent2:#1f6f8b; --ok:#127c56; --warn:#9a6b00; --bad:#a13232;
+}
+*{box-sizing:border-box}
+body{font-family:Arial, Helvetica, sans-serif; margin:0; background:var(--bg); color:var(--ink);}
+header{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:white; padding:24px 28px;}
+header h1{margin:0 0 8px; font-size:28px;}
+header p{margin:0; max-width:1050px; line-height:1.45;}
+main{padding:22px; max-width:1500px; margin:auto;}
+.controls{display:flex; gap:10px; flex-wrap:wrap; margin:0 0 16px;}
+button{border:0; border-radius:8px; padding:10px 14px; background:var(--accent); color:white; font-weight:700; cursor:pointer;}
+button.secondary{background:#44546a}
+button.light{background:#edf2f7; color:#172033; border:1px solid var(--line)}
+button:hover{filter:brightness(1.05)}
+.note{background:#fff7df; border:1px solid #ead28d; padding:12px 14px; border-radius:10px; margin:10px 0 18px; color:#403000;}
+.grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(430px,1fr)); gap:16px;}
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; box-shadow:0 2px 8px rgba(15,30,60,.04);}
+.card h2{font-size:20px; margin:2px 0 10px;}
+.card h3{font-size:17px; margin:4px 0 8px;}
+.table-wrap{overflow:auto;}
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th,td{border:1px solid var(--line); padding:6px 7px; text-align:center; vertical-align:middle;}
+th{background:var(--soft); font-weight:700;}
+td.team, th.team{text-align:left; min-width:145px;}
+input[type="number"]{width:58px; padding:6px; border:1px solid var(--line); border-radius:6px; text-align:center;}
+input[type="text"]{width:100%; padding:7px; border:1px solid var(--line); border-radius:6px;}
+select{width:100%; padding:7px; border:1px solid var(--line); border-radius:6px; background:white;}
+.small{font-size:12px; color:var(--muted);}
+.rank1{background:#e7f6ef}
+.rank2{background:#eef8e7}
+.rank3ok{background:#fff4d6}
+.ko-grid{display:grid; grid-template-columns:repeat(5,minmax(220px,1fr)); gap:14px; align-items:start;}
+.match{border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:10px; background:#fff;}
+.match .label{font-weight:700; color:var(--accent); margin-bottom:6px;}
+.winner{margin-top:7px; border-top:1px dashed var(--line); padding-top:7px;}
+.badge{display:inline-block; border-radius:999px; padding:3px 8px; font-size:12px; background:#eaf2ff; color:#17436f; margin-left:6px;}
+.summary{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; margin-bottom:16px;}
+.kpi{background:white; border:1px solid var(--line); border-radius:12px; padding:12px;}
+.kpi strong{display:block; font-size:22px; margin-top:4px;}
+@media print{
+ body{background:white}
+ header,.controls,.note{display:none}
+ main{padding:0}
+ .card{box-shadow:none; break-inside:avoid}
+ .grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Calculadora Mundial 2026: grupos, clasificados y ruta a la final</h1>
+  <p>Captura los marcadores de fase de grupos, calcula tablas automáticamente, identifica primeros, segundos y mejores terceros, y simula eliminatorias de un solo partido hasta campeón. Horario y TV no se incluyen aquí: esta herramienta está enfocada en resultados y clasificación.</p>
+</header>
+<main>
+  <div class="controls">
+    <button onclick="recalculateAll()">Calcular tablas</button>
+    <button onclick="loadQualifiersToBracket()">Cargar clasificados al bracket</button>
+    <button onclick="clearScores()" class="secondary">Limpiar marcadores</button>
+    <button onclick="saveLocal()" class="light">Guardar en este navegador</button>
+    <button onclick="loadLocal()" class="light">Recuperar guardado</button>
+    <button onclick="window.print()" class="light">Imprimir / PDF</button>
+  </div>
+  <div class="note">
+    <b>Supuesto operativo:</b> la calculadora usa el formato de 48 equipos: 12 grupos de 4; avanzan 1.º y 2.º de cada grupo más los 8 mejores terceros. El bracket es editable porque los cruces específicos de terceros pueden depender de combinaciones oficiales y ajustes de FIFA.
+  </div>
+  <section class="summary">
+    <div class="kpi">Clasificados calculados<strong id="kpiQ">0 / 32</strong></div>
+    <div class="kpi">Mejores terceros dentro<strong id="kpiThird">0 / 8</strong></div>
+    <div class="kpi">Campeón simulado<strong id="kpiChampion">—</strong></div>
+  </section>
+
+  <section class="card">
+    <h2>Clasificados proyectados</h2>
+    <div class="table-wrap">
+      <table id="qualifiersTable">
+        <thead><tr><th>#</th><th>Equipo</th><th>Origen</th><th>Pts</th><th>DG</th><th>GF</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <h2>Fase de grupos</h2>
+  <section class="grid" id="groups"></section>
+
+  <h2>Eliminatorias de un solo partido</h2>
+  <section class="card">
+    <div class="controls">
+      <button onclick="advanceRound('r32','r16')">Pasar ganadores a Octavos</button>
+      <button onclick="advanceRound('r16','qf')">Pasar ganadores a Cuartos</button>
+      <button onclick="advanceRound('qf','sf')">Pasar ganadores a Semifinales</button>
+      <button onclick="advanceRound('sf','final')">Pasar ganadores a Final</button>
+      <button onclick="setChampion()">Definir campeón</button>
+    </div>
+    <div class="ko-grid" id="bracket"></div>
+  </section>
+</main>
+
+<script>
+const groups = {
+ A:["México","Sudáfrica","Corea del Sur","Chequia"],
+ B:["Canadá","Bosnia y Herzegovina","Qatar","Suiza"],
+ C:["Brasil","Marruecos","Haití","Escocia"],
+ D:["Estados Unidos","Paraguay","Australia","Turquía"],
+ E:["Alemania","Curazao","Costa de Marfil","Ecuador"],
+ F:["Países Bajos","Japón","Suecia","Túnez"],
+ G:["Bélgica","Egipto","Irán","Nueva Zelanda"],
+ H:["España","Cabo Verde","Arabia Saudita","Uruguay"],
+ I:["Francia","Senegal","Irak","Noruega"],
+ J:["Argentina","Argelia","Austria","Jordania"],
+ K:["Portugal","RD Congo","Uzbekistán","Colombia"],
+ L:["Inglaterra","Croacia","Ghana","Panamá"]
+};
+const pairings = [[0,1],[2,3],[0,2],[3,1],[3,0],[1,2]];
+let standings = {}, qualifiers = [];
+
+function renderGroups(){
+ const root = document.getElementById('groups'); root.innerHTML='';
+ Object.entries(groups).forEach(([g,teams])=>{
+   const div=document.createElement('div'); div.className='card';
+   let matches = pairings.map((p,i)=>`
+     <tr>
+      <td class="team">${teams[p[0]]}</td>
+      <td><input type="number" min="0" id="m_${g}_${i}_h" onchange="recalculateAll()"></td>
+      <td>-</td>
+      <td><input type="number" min="0" id="m_${g}_${i}_a" onchange="recalculateAll()"></td>
+      <td class="team">${teams[p[1]]}</td>
+     </tr>`).join('');
+   div.innerHTML = `
+    <h2>Grupo ${g}</h2>
+    <h3>Marcadores</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Local</th><th>Goles</th><th></th><th>Goles</th><th>Visitante</th></tr></thead>
+      <tbody>${matches}</tbody>
+    </table></div>
+    <h3>Tabla</h3>
+    <div class="table-wrap"><table id="tbl_${g}">
+      <thead><tr><th>Pos</th><th class="team">Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th></tr></thead>
+      <tbody></tbody>
+    </table></div>`;
+   root.appendChild(div);
+ });
+ recalculateAll();
+}
+
+function recalculateAll(){
+ standings={}; qualifiers=[];
+ Object.entries(groups).forEach(([g,teams])=>{
+   let s={}; teams.forEach(t=>s[t]={team:t, group:g, pj:0,w:0,d:0,l:0,gf:0,ga:0,gd:0,pts:0, origin:''});
+   pairings.forEach((p,i)=>{
+     const h=document.getElementById(`m_${g}_${i}_h`).value;
+     const a=document.getElementById(`m_${g}_${i}_a`).value;
+     if(h==='' || a==='') return;
+     const hg=Number(h), ag=Number(a), ht=teams[p[0]], at=teams[p[1]];
+     s[ht].pj++; s[at].pj++; s[ht].gf+=hg; s[ht].ga+=ag; s[at].gf+=ag; s[at].ga+=hg;
+     if(hg>ag){s[ht].w++; s[ht].pts+=3; s[at].l++;}
+     else if(hg<ag){s[at].w++; s[at].pts+=3; s[ht].l++;}
+     else{s[ht].d++; s[at].d++; s[ht].pts++; s[at].pts++;}
+   });
+   Object.values(s).forEach(x=>x.gd=x.gf-x.ga);
+   let arr=Object.values(s).sort(compareTeams);
+   standings[g]=arr;
+   renderStanding(g,arr);
+ });
+ buildQualifiers();
+ renderQualifiers();
+ updateBracketOptions();
+}
+
+function compareTeams(a,b){
+ return b.pts-a.pts || b.gd-a.gd || b.gf-a.gf || a.ga-b.ga || a.team.localeCompare(b.team);
+}
+
+function renderStanding(g,arr){
+ const tb=document.querySelector(`#tbl_${g} tbody`); tb.innerHTML='';
+ arr.forEach((x,i)=>{
+  const tr=document.createElement('tr');
+  tr.className = i===0?'rank1':i===1?'rank2':'';
+  tr.innerHTML=`<td>${i+1}</td><td class="team">${x.team}</td><td>${x.pj}</td><td>${x.w}</td><td>${x.d}</td><td>${x.l}</td><td>${x.gf}</td><td>${x.ga}</td><td>${x.gd}</td><td><b>${x.pts}</b></td>`;
+  tb.appendChild(tr);
+ });
+}
+
+function buildQualifiers(){
+ let thirds=[];
+ Object.entries(standings).forEach(([g,arr])=>{
+   if(arr[0]) qualifiers.push({...arr[0], origin:`1.º Grupo ${g}`});
+   if(arr[1]) qualifiers.push({...arr[1], origin:`2.º Grupo ${g}`});
+   if(arr[2]) thirds.push({...arr[2], origin:`3.º Grupo ${g}`});
+ });
+ thirds.sort(compareTeams);
+ thirds.slice(0,8).forEach(x=>qualifiers.push({...x, origin:`Mejor tercero (${x.group})`}));
+ document.getElementById('kpiQ').textContent = `${qualifiers.length} / 32`;
+ document.getElementById('kpiThird').textContent = `${Math.min(thirds.length,8)} / 8`;
+}
+
+function renderQualifiers(){
+ const tb=document.querySelector('#qualifiersTable tbody'); tb.innerHTML='';
+ qualifiers.forEach((q,i)=>{
+   const tr=document.createElement('tr');
+   if(q.origin.includes('Mejor tercero')) tr.className='rank3ok';
+   tr.innerHTML=`<td>${i+1}</td><td class="team">${q.team}</td><td>${q.origin}</td><td>${q.pts}</td><td>${q.gd}</td><td>${q.gf}</td>`;
+   tb.appendChild(tr);
+ });
+}
+
+const rounds = {
+ r32:{title:"Dieciseisavos", matches:16},
+ r16:{title:"Octavos", matches:8},
+ qf:{title:"Cuartos", matches:4},
+ sf:{title:"Semifinales", matches:2},
+ final:{title:"Final", matches:1}
+};
+
+function renderBracket(){
+ const root=document.getElementById('bracket'); root.innerHTML='';
+ Object.entries(rounds).forEach(([key,r])=>{
+  const col=document.createElement('div');
+  col.innerHTML=`<h3>${r.title}</h3>`;
+  for(let i=0;i<r.matches;i++){
+   const m=document.createElement('div'); m.className='match';
+   m.innerHTML=`
+    <div class="label">${r.title} ${i+1}</div>
+    <select id="${key}_${i}_a" onchange="syncWinnerOptions('${key}',${i})"></select>
+    <select id="${key}_${i}_b" onchange="syncWinnerOptions('${key}',${i})"></select>
+    <div class="winner small">Ganador</div>
+    <select id="${key}_${i}_w" onchange="if('${key}'==='final') setChampion()"></select>`;
+   col.appendChild(m);
+  }
+  root.appendChild(col);
+ });
+ updateBracketOptions();
+}
+
+function optionHtml(list, current){
+ let html='<option value="">— Seleccionar —</option>';
+ list.forEach(x=>{ html += `<option value="${x}" ${x===current?'selected':''}>${x}</option>`; });
+ return html;
+}
+
+function getAllTeams(){
+ return [...new Set(Object.values(groups).flat().concat(qualifiers.map(q=>q.team)))].sort();
+}
+
+function updateBracketOptions(){
+ const opts=getAllTeams();
+ Object.keys(rounds).forEach(key=>{
+  for(let i=0;i<rounds[key].matches;i++){
+   ['a','b','w'].forEach(side=>{
+    const el=document.getElementById(`${key}_${i}_${side}`);
+    if(!el) return;
+    const cur=el.value;
+    let localOpts = side==='w' ? [document.getElementById(`${key}_${i}_a`)?.value, document.getElementById(`${key}_${i}_b`)?.value].filter(Boolean) : opts;
+    el.innerHTML=optionHtml(localOpts.length?localOpts:opts,cur);
+   });
+  }
+ });
+}
+
+function syncWinnerOptions(key,i){
+ const a=document.getElementById(`${key}_${i}_a`).value;
+ const b=document.getElementById(`${key}_${i}_b`).value;
+ const w=document.getElementById(`${key}_${i}_w`);
+ const cur=w.value;
+ w.innerHTML=optionHtml([a,b].filter(Boolean),cur);
+}
+
+function loadQualifiersToBracket(){
+ recalculateAll();
+ if(qualifiers.length<32){ alert("Faltan resultados para tener 32 clasificados completos. Puedes cargar los disponibles o completar marcadores."); }
+ const order = qualifiers.map(q=>q.team);
+ for(let i=0;i<16;i++){
+   const a=document.getElementById(`r32_${i}_a`);
+   const b=document.getElementById(`r32_${i}_b`);
+   a.value = order[i] || '';
+   b.value = order[31-i] || '';
+   syncWinnerOptions('r32',i);
+ }
+}
+
+function advanceRound(from,to){
+ for(let i=0;i<rounds[to].matches;i++){
+   const w1=document.getElementById(`${from}_${i*2}_w`).value;
+   const w2=document.getElementById(`${from}_${i*2+1}_w`).value;
+   document.getElementById(`${to}_${i}_a`).value=w1;
+   document.getElementById(`${to}_${i}_b`).value=w2;
+   syncWinnerOptions(to,i);
+ }
+}
+
+function setChampion(){
+ const champ=document.getElementById('final_0_w').value || '—';
+ document.getElementById('kpiChampion').textContent=champ;
+}
+
+function clearScores(){
+ Object.keys(groups).forEach(g=>pairings.forEach((p,i)=>{
+   document.getElementById(`m_${g}_${i}_h`).value='';
+   document.getElementById(`m_${g}_${i}_a`).value='';
+ }));
+ recalculateAll();
+}
+
+function saveLocal(){
+ const data={scores:{}, bracket:{}};
+ Object.keys(groups).forEach(g=>pairings.forEach((p,i)=>{
+   data.scores[`m_${g}_${i}_h`]=document.getElementById(`m_${g}_${i}_h`).value;
+   data.scores[`m_${g}_${i}_a`]=document.getElementById(`m_${g}_${i}_a`).value;
+ }));
+ Object.keys(rounds).forEach(k=>{ for(let i=0;i<rounds[k].matches;i++){ ['a','b','w'].forEach(s=>data.bracket[`${k}_${i}_${s}`]=document.getElementById(`${k}_${i}_${s}`).value); }});
+ localStorage.setItem('mundial2026_calc', JSON.stringify(data));
+ alert('Guardado en este navegador.');
+}
+
+function loadLocal(){
+ const raw=localStorage.getItem('mundial2026_calc');
+ if(!raw){ alert('No hay guardado local.'); return; }
+ const data=JSON.parse(raw);
+ Object.entries(data.scores||{}).forEach(([id,val])=>{ const el=document.getElementById(id); if(el) el.value=val; });
+ recalculateAll();
+ Object.entries(data.bracket||{}).forEach(([id,val])=>{ const el=document.getElementById(id); if(el) el.value=val; });
+ Object.keys(rounds).forEach(k=>{ for(let i=0;i<rounds[k].matches;i++) syncWinnerOptions(k,i); });
+ setChampion();
+}
+
+renderGroups();
+renderBracket();
+</script>
+</body>
+</html>
